@@ -1,8 +1,12 @@
 package fr.epita.rloic.fr.epita.rloic.minizinc
 
+import fr.epita.rloic.fr.epita.rloic.minizinc.extensions.expandsUser
+import fr.epita.rloic.fr.epita.rloic.minizinc.extensions.run
+import fr.epita.rloic.fr.epita.rloic.minizinc.extensions.runAsync
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
+import fr.epita.rloic.fr.epita.rloic.minizinc.utils.Configuration
 import kotlinx.serialization.Serializable
-import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.exists
@@ -74,10 +78,8 @@ class Driver private constructor(private val executable: Path) {
     }
 
 
-    fun run(args: MutableList<String>, solver: Solver? = null): ProcessResult {
-        // if (minizincVersion >= Version(2, 6, 0)) {
+    fun run(args: MutableList<String>, solver: Solver? = null, contextManager: ContextManager = ContextManager()): ProcessResult.Sync {
         args += "--json-stream"
-        // }
 
         val output = if (solver == null) {
             val cmd = listOf(
@@ -86,7 +88,7 @@ class Driver private constructor(private val executable: Path) {
             ) + args
             ProcessBuilder(cmd).run()
         } else {
-            fun executeWithConf(conf: Configuration): ProcessResult {
+            fun executeWithConf(conf: Configuration): ProcessResult.Sync {
                 val cmd = listOf(
                     executable.pathString,
                     "--solver",
@@ -95,18 +97,16 @@ class Driver private constructor(private val executable: Path) {
                 ) + args
                 return ProcessBuilder(cmd).run()
             }
-            solver.configuration().use(::executeWithConf)
+            contextManager.use(solver.configuration(), ::executeWithConf)
         }
         if (output.returnCode != 0) {
-            throw parseError(output.stdout) ?: RuntimeException(output.stderr)
+            parseError(output.stdout)?.throws() ?: throw RuntimeException(output.stderr)
         }
         return output
     }
 
-    fun runAsync(args: MutableList<String>, solver: Solver? = null): ASyncProcessResult {
-        // if (minizincVersion >= Version(2, 6, 0)) {
+    fun runAsync(args: MutableList<String>, solver: Solver? = null, contextManager: ContextManager = ContextManager()): ProcessResult.Async {
         args += "--json-stream"
-        // }
 
         val output = if (solver == null) {
             val cmd = listOf(
@@ -115,7 +115,7 @@ class Driver private constructor(private val executable: Path) {
             ) + args
             ProcessBuilder(cmd).runAsync()
         } else {
-            fun executeWithConf(conf: Configuration): ASyncProcessResult {
+            fun executeWithConf(conf: Configuration): ProcessResult.Async {
                 val cmd = listOf(
                     executable.pathString,
                     "--solver",
@@ -124,7 +124,7 @@ class Driver private constructor(private val executable: Path) {
                 ) + args
                 return ProcessBuilder(cmd).runAsync()
             }
-            solver.configuration().use(::executeWithConf)
+            contextManager.use(solver.configuration(), ::executeWithConf)
         }
         return output
     }
@@ -163,23 +163,40 @@ class Driver private constructor(private val executable: Path) {
 @Serializable
 data class Location(
     val filename: String? = null,
-    val firstLine: Int = 0,
-    val firstColumn: Int = 0,
-    val lastLine: Int = 0,
-    val lastColumn: Int = 0,
-    val message: String = ""
-)
+    val firstLine: Int? = null,
+    val firstColumn: Int? = null,
+    val lastLine: Int? = null,
+    val lastColumn: Int? = null,
+    val message: String? = null
+) {
+    override fun toString() = buildString {
+        if (filename != null) {
+            append("filename: ")
+            append(filename)
+        }
+        if (listOf(firstLine, firstColumn, lastLine, lastColumn).any { it != 0 && it != null }) {
+            if (isNotEmpty()) append(' ')
+            append("from ")
+            append(firstLine)
+            append(':')
+            append(firstColumn)
+            append(" to ")
+            append(lastLine)
+            append(':')
+            append(lastColumn)
+        }
+        if (!message.isNullOrBlank()) {
+            if(isNotEmpty()) append(' ')
+            append("message: ")
+            append(message)
+        }
+        if (isEmpty()) append("null")
+    }
+}
 
-@Serializable
-class MznJsonError(
-    val type: String = "error",
-    val what: String = "",
-    val location: Location,
-    override val message: String = "",
-) : RuntimeException()
 
-fun parseError(text: String): MznJsonError? {
-    return try { loads<MznJsonError>(text) } catch (_: Exception) { null }
+fun parseError(text: String): JsonOutput.Error? {
+    return try { loads<JsonOutput>(text) as? JsonOutput.Error } catch (_: Exception) { null }
 }
 
 
