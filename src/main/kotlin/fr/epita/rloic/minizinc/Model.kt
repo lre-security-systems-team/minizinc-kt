@@ -23,6 +23,7 @@ data class Model(
     constructor(files: List<Path>) : this() {
         for (file in files) addFile(file)
     }
+
     constructor(file: Path) : this(listOf(file))
 
     operator fun get(key: String): DznValue? = _data[key]
@@ -54,6 +55,7 @@ data class Model(
                     this[key] = value
                 }
             }
+
             in listOf("dzn", "mzn", "mzc") -> {
                 // TODO: add parser dzn instructions
                 if (file.extension == "mzc") {
@@ -71,5 +73,4 @@ data class Model(
     fun addString(fragment: String) {
         _codeFragments += fragment
     }
-
 }

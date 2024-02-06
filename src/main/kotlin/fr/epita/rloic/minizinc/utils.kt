@@ -7,6 +7,8 @@ import kotlin.io.path.exists
 import kotlin.io.path.isExecutable
 import kotlin.io.path.isRegularFile
 
+fun system(): String = System.getProperty("os.name")
+
 fun getDefaultPath(): List<Path> {
     val path = System.getenv("PATH") ?: return emptyList()
     return path.split(File.pathSeparatorChar)
