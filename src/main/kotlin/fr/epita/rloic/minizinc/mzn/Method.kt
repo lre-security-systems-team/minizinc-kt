@@ -1,4 +1,4 @@
-package fr.epita.rloic.fr.epita.rloic.minizinc
+package fr.epita.rloic.fr.epita.rloic.minizinc.mzn
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -22,9 +22,9 @@ enum class Method(private val jsonValue: String) {
     companion object {
         fun fromJsonValue(s: String): Method {
             return when (s) {
-                "sat" -> SATISFY
-                "min" -> MINIMIZE
-                "max" -> MAXIMIZE
+                "sat", "satisfy" -> SATISFY
+                "min", "minimize" -> MINIMIZE
+                "max", "maximize" -> MAXIMIZE
                 else -> throw IllegalArgumentException("Unknown method $s, valid options are 'sat', 'min' and 'max'")
             }
         }

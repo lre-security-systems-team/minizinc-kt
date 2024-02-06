@@ -1,8 +1,11 @@
 package fr.epita.rloic.fr.epita.rloic.minizinc
 
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.ExtraFlag
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.ExtraInfo
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.PathSerializer
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.dumps
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
+import fr.epita.rloic.fr.epita.rloic.minizinc.utils.Configuration
 import kotlinx.serialization.Serializable
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -32,11 +35,13 @@ data class Solver(
     val needsStdlibDir: Boolean = false,
     val needsPathsFile: Boolean = false,
     val isGUIApplication: Boolean = false,
-    var _identifier: String? = null
+    val extraInfo: ExtraInfo? = null,
+    var _identifier: String? = null,
 ) {
 
     companion object {
         fun lookup(tag: String, driver: Driver? = null, refresh: Boolean = false): Solver {
+            @Suppress("NAME_SHADOWING")
             val driver = driver ?: defaultDriver
 
             val tagMap = driver.availableSolvers(refresh)
@@ -49,7 +54,6 @@ data class Solver(
         fun load(path: Path): Solver {
             if (!path.exists()) {
                 throw FileNotFoundException(path.pathString)
-
             }
             val solver = loads<Solver>(path.readText())
             // TODO: "Resolve relative paths"
@@ -66,12 +70,10 @@ data class Solver(
                 prefix = "minizinc_solver_",
                 suffix = ".msc",
             )
-            path.writeText(outputConfiguration())
+            path.writeText(dumps(this))
             Configuration.TmpFile(path)
         }
     }
-
-    private fun outputConfiguration(): String = dumps(this)
 
 }
 

@@ -1,6 +1,6 @@
 package fr.epita.rloic.fr.epita.rloic.minizinc
 
-data class MznResult(
+data class SearchResult(
     val status: Status,
     val solution: Solution?,
     val statistics: Statistics

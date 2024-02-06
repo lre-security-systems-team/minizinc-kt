@@ -1,4 +1,4 @@
-package fr.epita.rloic.fr.epita.rloic.minizinc
+package fr.epita.rloic.fr.epita.rloic.minizinc.utils
 
 import java.nio.file.Path
 import kotlin.io.path.deleteIfExists

@@ -2,17 +2,16 @@ package fr.epita.rloic.fr.epita.rloic.minizinc
 
 import fr.epita.rloic.fr.epita.rloic.minizinc.dzn.DznData
 import fr.epita.rloic.fr.epita.rloic.minizinc.dzn.DznValue
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.Method
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.dumps
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.double
+import fr.epita.rloic.fr.epita.rloic.minizinc.utils.FilesContextManager
 import java.nio.file.Path
 import java.time.Instant
 import kotlin.io.path.appendText
 import kotlin.io.path.createTempFile
+import kotlin.io.path.pathString
 import kotlin.io.path.writeText
 import kotlin.time.Duration
 
@@ -40,7 +39,7 @@ class Instance(
         freeSearch: Boolean = false,
         optimisationLevel: Int? = null,
         kwargs: Map<String, Any> = emptyMap()
-    ): MznResult {
+    ): SearchResult {
         var status = Status.UNKNOWN
         var solution: Solution? = null
         val statistics = Statistics()
@@ -71,7 +70,7 @@ class Instance(
                 }
             }
         }
-        return MznResult(status, solution, statistics)
+        return SearchResult(status, solution, statistics)
     }
 
     private fun solutions(
@@ -86,7 +85,7 @@ class Instance(
         verbose: Boolean = false,
         debutOutput: Path? = null,
         kwargs: Map<String, Any> = emptyMap()
-    ): Sequence<MznResult> = sequence {
+    ): Sequence<SearchResult> = sequence {
         val cmd = mutableListOf(
             "--output-mode",
             "json",
@@ -146,15 +145,15 @@ class Instance(
             }
         }
 
+        val contextManager = ContextManager()
         files().use { files ->
             cmd += files.map(Path::toString)
             var status = Status.UNKNOWN
             var statistics = Statistics()
-            val proc = driver.runAsync(cmd, solver)
+            val proc = driver.runAsync(cmd, solver, contextManager)
 
             for (line in proc.stdout) {
-                val error = parseError(line)
-                if (error != null) throw error
+                parseError(line)?.throws()
 
                 val (solution, newStatus, _statistics) = parseStreamObj(loads(line), statistics)
                 statistics = _statistics
@@ -164,12 +163,45 @@ class Instance(
                     if (status == Status.UNKNOWN) {
                         status = Status.SATISFIED
                     }
-                    yield(MznResult(status, solution, statistics))
+                    yield(SearchResult(status, solution, statistics))
                     statistics = Statistics()
                 }
             }
             proc.waitFor()
         }
+    }
+
+    private fun flat(
+        timeLimit: Duration? = null,
+        optimizationLevel: Int? = null
+    ): FilesContextManager {
+
+        val cmd = mutableListOf("--compile", "--statistics")
+
+        val fzn = createTempFile(
+            prefix = "fzn_",
+            suffix = ".fzn"
+        )
+        cmd += listOf("--fzn", fzn.pathString)
+        val ozn = createTempFile(
+            prefix = "ozn_",
+            suffix = ".ozn"
+        )
+        cmd += listOf("--ozn", ozn.pathString)
+
+
+        if(timeLimit != null) {
+            cmd += listOf("--time-limit", timeLimit.inWholeMilliseconds.toString())
+        }
+
+        if (optimizationLevel != null) {
+            cmd += listOf("-O", optimizationLevel.toString())
+        }
+
+
+        return FilesContextManager(emptyList(), listOf(fzn, ozn))
+
+        TODO()
     }
 
     private fun files(): FilesContextManager {
@@ -213,15 +245,31 @@ class Instance(
         return FilesContextManager(files, genFiles)
     }
 
-    private fun parseStreamObj(obj: MutableMap<String, JsonElement>, statistics: Statistics): Ret {
+    data class UpdatedResult(
+        val newSolution: Solution.Single?,
+        val newStatus: Status?,
+        val updatedStatistics: Statistics
+    )
+
+    private fun parseStreamObj(obj: JsonOutput, statistics: Statistics): UpdatedResult {
         var solution: Solution.Single? = null
         var status: Status? = null
-        val type = (obj["type"] as? JsonPrimitive)?.content
 
+        when (obj) {
+            is JsonOutput.Interface -> {
+                // TODO: print warning?
+            }
 
-        when (type) {
-            "solution" -> {
-                val tmp = DznData.fromJsonObject((obj["output"] as JsonObject)["json"] as JsonObject)
+            is JsonOutput.Comment -> {
+                System.err.print(obj.comment)
+            }
+
+            is JsonOutput.Error -> {
+                throw RuntimeException(obj.message)
+            }
+
+            is JsonOutput.Solution -> {
+                val tmp = DznData.fromJsonObject(obj.output.json)
                 val mznFieldsRename = listOf(
                     "_objective" to "objective",
                     "_output" to "_output_item"
@@ -233,47 +281,43 @@ class Instance(
                 }
 
                 solution = Solution.Single(tmp)
-                statistics.time = timedelta((obj["time"] as JsonPrimitive).double)
+                statistics.time = timedelta(obj.time)
             }
 
-            "time" -> {
-                statistics.time = timedelta((obj["time"] as JsonPrimitive).double)
+            is JsonOutput.Time -> {
+                statistics.time = timedelta(obj.time)
             }
 
-            "statistics" -> {
+            is JsonOutput.Statistics -> {
                 // TODO: update statistics
                 // System.err.println(loads<Statistics>(dumps(obj["statistics"])))
             }
 
-            "status" -> {
-                status = Status.valueOf((obj["status"] as JsonPrimitive).content)
+            is JsonOutput.Status -> {
+                status = obj.status
             }
 
-            "checker" -> {
+            is JsonOutput.Checker -> {
                 // TODO: handle checker
                 System.err.println(obj)
             }
         }
-        return Ret(solution, status, statistics)
+        return UpdatedResult(solution, status, statistics)
     }
 
-    private fun analyse(): MznInterface {
+    private fun analyse(): JsonOutput.Interface {
         return files().use { files ->
-            loads<MznInterface>(
+            loads<JsonOutput>(
                 driver.run(
                     (listOf("--model-interface-only") + files.map(Path::toString)).toMutableList(),
                     solver
                 ).stdout
-            )
+            ) as JsonOutput.Interface
         }
     }
 
 }
 
-@Serializable
-data class MznInterface(
-    val method: Method
-)
 
 fun checkFlagSupport(solver: Solver, flag: String) {
     if (flag !in solver.stdFlags) throwUnsupportedFlag(flag)
@@ -281,15 +325,7 @@ fun checkFlagSupport(solver: Solver, flag: String) {
 
 fun throwUnsupportedFlag(flag: String): Nothing = throw NotImplementedError("Solver does not support the $flag flag")
 
-enum class Status {
-    ERROR, UNKNOWN, UNBOUNDED, UNSATISFIABLE, SATISFIED, ALL_SOLUTIONS, OPTIMAL_SOLUTION;
-}
 
-data class Ret(
-    val newSolution: Solution.Single?,
-    val newStatus: Status?,
-    val updatedStatistics: Statistics
-)
 
 fun timedelta(instantMilli: Double): Double {
     return Instant.now().toEpochMilli() - instantMilli
