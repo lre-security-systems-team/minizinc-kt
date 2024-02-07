@@ -1,10 +1,13 @@
 package fr.epita.rloic.fr.epita.rloic.minizinc.mzn
 
-import fr.epita.rloic.fr.epita.rloic.minizinc.Location
+
 import fr.epita.rloic.fr.epita.rloic.minizinc.error.MznExecutionError
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.PathSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+import kotlinx.serialization.json.JsonElement
+
 import kotlinx.serialization.json.JsonObject
 import java.nio.file.Path
 import fr.epita.rloic.fr.epita.rloic.minizinc.Statistics as _Statistics
@@ -23,7 +26,7 @@ sealed class JsonOutput {
         val hasOutputItem: Boolean,
         @SerialName("included_files")
         val includedFiles: List<@Serializable(with = PathSerializer::class) Path>,
-        val globals: List<JsonObject>
+        val globals: List<JsonElement>
     ) : JsonOutput()
 
     @Serializable
@@ -47,6 +50,25 @@ sealed class JsonOutput {
     data class Comment(val comment: String) : JsonOutput()
 
 
+    @Serializable
+    @SerialName("warning")
+    data class Warning(val message: String, val location: Location? = null, val stack: List<StackElement> = emptyList()): JsonOutput() {
+        override fun toString() = buildString {
+            append("[warning]\nmessage: ")
+            append(message)
+            if (location != null) {
+                append("\nlocation :")
+                append(location)
+            }
+            if (stack.isNotEmpty()) {
+                append("\nstack: ")
+                for (element in stack) {
+                    append("\n - ")
+                    append(element)
+                }
+            }
+        }
+    }
 
     @Serializable
     @SerialName("solution")

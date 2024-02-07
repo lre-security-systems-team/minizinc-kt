@@ -7,6 +7,7 @@ import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.dumps
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
 import fr.epita.rloic.fr.epita.rloic.minizinc.utils.FilesContextManager
+import kotlinx.serialization.json.JsonObject
 import java.nio.file.Path
 import java.time.Instant
 import kotlin.io.path.appendText
@@ -15,11 +16,11 @@ import kotlin.io.path.pathString
 import kotlin.io.path.writeText
 import kotlin.time.Duration
 
-class Instance(
+class Instance<T>(
     private val solver: Solver,
-    private val model: Model,
+    private val model: Model<T>,
     driver: Driver? = null,
-    private val parent: Instance? = null
+    private val parent: Instance<T>? = null
 ) {
     private val fieldRenames = mutableListOf<Pair<String, String>>()
     private val driver = driver ?: defaultDriver
@@ -39,9 +40,9 @@ class Instance(
         freeSearch: Boolean = false,
         optimisationLevel: Int? = null,
         kwargs: Map<String, Any> = emptyMap()
-    ): SearchResult {
+    ): SearchResult<T> {
         var status = Status.UNKNOWN
-        var solution: Solution? = null
+        var solution: Solution<T>? = null
         val statistics = Statistics()
 
         val multipleSolutions = (allSolutions || intermediateSolutions || (nrSolutions != null))
@@ -83,9 +84,9 @@ class Instance(
         freeSearch: Boolean = false,
         optimisationLevel: Int? = null,
         verbose: Boolean = false,
-        debutOutput: Path? = null,
+        debugOutput: Path? = null,
         kwargs: Map<String, Any> = emptyMap()
-    ): Sequence<SearchResult> = sequence {
+    ): Sequence<SearchResult<T>> = sequence {
         val cmd = mutableListOf(
             "--output-mode",
             "json",
@@ -105,15 +106,13 @@ class Instance(
                 """.trimIndent()
                 )
             }
-            if (method != Method.SATISFY) {
-                throw NotImplementedError(
-                    """
-                    Finding all optimal solutions is not yet implemented
-                """.trimIndent()
-                )
+            if (method == Method.SATISFY) {
+                checkFlagSupport(solver, "-a")
+                cmd.add("--all-solutions")
+            } else {
+                checkFlagSupport(solver, "-a-o")
+                cmd.add("--all-optimal")
             }
-            checkFlagSupport(solver, "-a")
-            cmd.add("--all-solutions")
         } else if (nrSolutions != null) {
             if (nrSolutions <= 0L) {
                 throw IllegalArgumentException(
@@ -123,11 +122,15 @@ class Instance(
                 """.trimIndent()
                 )
             }
-            if (method != Method.SATISFY) {
-                throw NotImplementedError("Finding multiple optimal solutions is not yet implemented")
+            if (method == Method.SATISFY) {
+                checkFlagSupport(solver, "-n")
+                cmd += listOf("--num-solutions", nrSolutions.toString())
+            } else {
+                checkFlagSupport(solver, "-n-o")
+                cmd += listOf("--num-optimal", nrSolutions.toString())
             }
-            checkFlagSupport(solver, "-n")
-            cmd += listOf("--num-solutions", nrSolutions.toString())
+        } else if ("-i" !in solver.stdFlags || "-a" !in solver.stdFlags) {
+            cmd += "--intermediate-solutions"
         }
         if (processes != null) cmd += listOf("--parallel", processes.toString())
         if (randomSeed != null) cmd += listOf("--random-seed", randomSeed.toString())
@@ -145,63 +148,54 @@ class Instance(
             }
         }
 
+        val multipleSolutions = (allSolutions || intermediateSolutions || (nrSolutions != null))
+
         val contextManager = ContextManager()
-        files().use { files ->
-            cmd += files.map(Path::toString)
-            var status = Status.UNKNOWN
-            var statistics = Statistics()
-            val proc = driver.runAsync(cmd, solver, contextManager)
+        contextManager.use { ctx ->
+            files().use { files ->
+                cmd += files.map(Path::toString)
+                var status = Status.UNKNOWN
+                var solution: Solution<T>? = null
+                var statistics = Statistics()
+                var statusChanged = false
+                val proc = driver.runAsync(cmd, solver, ctx)
 
-            for (line in proc.stdout) {
-                parseError(line)?.throws()
+                for (line in proc.stdout) {
+                    parseError(line)?.throws()
 
-                val (solution, newStatus, _statistics) = parseStreamObj(loads(line), statistics)
-                statistics = _statistics
-                if (newStatus != null) {
-                    status = newStatus
-                } else if (solution != null) {
-                    if (status == Status.UNKNOWN) {
-                        status = Status.SATISFIED
+                    val (newSolution, newStatus) = parseStreamObj(loads(line), statistics)
+                    if (newStatus != null) {
+                        status = newStatus
+                        statusChanged = true
+                    } else if (newSolution != null) {
+                        solution = newSolution
+                        if (status == Status.UNKNOWN) {
+                            status = Status.SATISFIED
+                        }
+                        if (multipleSolutions) {
+                            yield(SearchResult(status, solution, statistics))
+                            solution = null
+                            statistics = Statistics()
+                            statusChanged = false
+                        }
                     }
+                }
+
+                if (!multipleSolutions) {
                     yield(SearchResult(status, solution, statistics))
-                    statistics = Statistics()
+                } else if (statusChanged || statistics != Statistics()) {
+                    yield(SearchResult(status, null, statistics))
+                }
+
+                val stdErr = proc.stderr.joinToString("\n")
+                val code = proc.waitFor()
+                debugOutput?.writeText(stdErr)
+                if (code != 0 || status == Status.ERROR) {
+                    parseError(stdErr)?.throws()
                 }
             }
-            proc.waitFor()
-        }
-    }
-
-    private fun flat(
-        timeLimit: Duration? = null,
-        optimizationLevel: Int? = null
-    ): FilesContextManager {
-
-        val cmd = mutableListOf("--compile", "--statistics")
-
-        val fzn = createTempFile(
-            prefix = "fzn_",
-            suffix = ".fzn"
-        )
-        cmd += listOf("--fzn", fzn.pathString)
-        val ozn = createTempFile(
-            prefix = "ozn_",
-            suffix = ".ozn"
-        )
-        cmd += listOf("--ozn", ozn.pathString)
-
-
-        if(timeLimit != null) {
-            cmd += listOf("--time-limit", timeLimit.inWholeMilliseconds.toString())
         }
 
-        if (optimizationLevel != null) {
-            cmd += listOf("-O", optimizationLevel.toString())
-        }
-
-
-        return FilesContextManager(emptyList(), listOf(fzn, ozn))
-
-        TODO()
     }
 
     private fun files(): FilesContextManager {
@@ -209,7 +203,7 @@ class Instance(
         val fragments = mutableListOf<String>()
         val data = mutableMapOf<String, DznValue>()
 
-        var inst: Instance? = this
+        var inst: Instance<T>? = this
         while (inst != null) {
             for ((k, v) in inst.model.data.entries) {
                 if (v is DznValue.Enum) {
@@ -245,14 +239,14 @@ class Instance(
         return FilesContextManager(files, genFiles)
     }
 
-    data class UpdatedResult(
-        val newSolution: Solution.Single?,
-        val newStatus: Status?,
-        val updatedStatistics: Statistics
+
+    data class UpdatedResult<T>(
+        val newSolution: Solution.Single<T>?,
+        val newStatus: Status?
     )
 
-    private fun parseStreamObj(obj: JsonOutput, statistics: Statistics): UpdatedResult {
-        var solution: Solution.Single? = null
+    private fun parseStreamObj(obj: JsonOutput, statistics: Statistics): UpdatedResult<T> {
+        var solution: Solution.Single<T>? = null
         var status: Status? = null
 
         when (obj) {
@@ -268,8 +262,13 @@ class Instance(
                 throw RuntimeException(obj.message)
             }
 
+            is JsonOutput.Warning -> {
+                System.err.println(obj)
+            }
+
             is JsonOutput.Solution -> {
-                val tmp = DznData.fromJsonObject(obj.output.json)
+                val tmp = obj.output.json.toMutableMap()
+
                 val mznFieldsRename = listOf(
                     "_objective" to "objective",
                     "_output" to "_output_item"
@@ -280,17 +279,16 @@ class Instance(
                     }
                 }
 
-                solution = Solution.Single(tmp)
-                statistics.time = timedelta(obj.time)
+                solution = Solution.Single(model.outputType(JsonObject(tmp)))
+                statistics.time = obj.time
             }
 
             is JsonOutput.Time -> {
-                statistics.time = timedelta(obj.time)
+                statistics.time = obj.time
             }
 
             is JsonOutput.Statistics -> {
-                // TODO: update statistics
-                // System.err.println(loads<Statistics>(dumps(obj["statistics"])))
+                statistics.update(obj.statistics)
             }
 
             is JsonOutput.Status -> {
@@ -302,7 +300,7 @@ class Instance(
                 System.err.println(obj)
             }
         }
-        return UpdatedResult(solution, status, statistics)
+        return UpdatedResult(solution, status)
     }
 
     private fun analyse(): JsonOutput.Interface {
@@ -324,9 +322,3 @@ fun checkFlagSupport(solver: Solver, flag: String) {
 }
 
 fun throwUnsupportedFlag(flag: String): Nothing = throw NotImplementedError("Solver does not support the $flag flag")
-
-
-
-fun timedelta(instantMilli: Double): Double {
-    return Instant.now().toEpochMilli() - instantMilli
-}

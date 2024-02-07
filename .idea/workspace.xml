@@ -4,7 +4,29 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f7b966b5-8466-40b9-8af6-932cd810822c" name="Changes" comment="[init] Initial commint" />
+    <list default="true" id="f7b966b5-8466-40b9-8af6-932cd810822c" name="Changes" comment="chore (global): Add Baseline version&#10;Create the first alpha version from MiniZinc python">
+      <change afterPath="$PROJECT_DIR$/LICENCE" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/LICENCE_fr" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/mzn/Location.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/mzn/StackElement.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/utils/IterMap.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Driver.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Driver.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Instance.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Instance.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Model.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Model.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/MznResult.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/MznResult.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/SearchResult.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/SearchResult.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Solution.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Solution.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Statistics.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Statistics.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/Version.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/mzn/Version.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/dzn/DznData.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/dzn/DznData.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/dzn/DznValue.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/dzn/DznValue.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/mzn/JsonOutput.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/mzn/JsonOutput.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/serde/serde.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/serde/serde.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.mzn" beforeDir="false" afterPath="$PROJECT_DIR$/test.mzn" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -18,8 +40,8 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Kotlin Class" />
         <option value="Kotlin File" />
+        <option value="Kotlin Class" />
       </list>
     </option>
   </component>
@@ -38,27 +60,33 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Gradle.Build minizinc-kt.executor": "Run",
-    "Kotlin.MainKt.executor": "Run",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master",
-    "kotlin-language-version-configured": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "onboarding.tips.debug.path": "/Users/rloic/Documents/Recherche/minizinc-kt/src/main/kotlin/Main.kt",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Gradle.Build minizinc-kt.executor&quot;: &quot;Run&quot;,
+    &quot;Kotlin.MainKt.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;fix/temporary-file-management&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;onboarding.tips.debug.path&quot;: &quot;/Users/rloic/Documents/Recherche/minizinc-kt/src/main/kotlin/Main.kt&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/extensions" />
+    </key>
     <key name="MoveKotlinTopLevelDeclarationsDialog.RECENTS_KEY">
-      <recent name="fr.epita.rloic.minizinc.dzn" />
+      <recent name="fr.epita.rloic.minizinc.mzn" />
+      <recent name="fr.epita.rloic.minizinc.utils" />
       <recent name="fr.epita.rloic.minizinc.serde" />
+      <recent name="fr.epita.rloic.minizinc.mzn_model" />
+      <recent name="fr.epita.rloic.minizinc.dzn" />
     </key>
   </component>
   <component name="RunManager">
@@ -93,6 +121,10 @@
       <workItem from="1706985686102" duration="11739000" />
       <workItem from="1707080182775" duration="7074000" />
       <workItem from="1707118883070" duration="19012000" />
+      <workItem from="1707226662609" duration="829000" />
+      <workItem from="1707259505695" duration="1794000" />
+      <workItem from="1707290827276" duration="2444000" />
+      <workItem from="1707298049958" duration="10371000" />
     </task>
     <task id="LOCAL-00001" summary="[init] Initial commint">
       <option name="closed" value="true" />

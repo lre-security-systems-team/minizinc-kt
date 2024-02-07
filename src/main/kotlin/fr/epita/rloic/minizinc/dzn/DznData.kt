@@ -3,7 +3,7 @@ package fr.epita.rloic.fr.epita.rloic.minizinc.dzn
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-data class DznData(private val delegate: MutableMap<String, DznValue>): MutableMap<String, DznValue> by delegate {
+data class DznData(private val delegate: Map<String, DznValue>): Map<String, DznValue> by delegate {
     companion object {
         fun fromJsonObject(root: JsonObject): DznData {
             val values = mutableMapOf<String, DznValue>()
@@ -21,5 +21,7 @@ data class DznData(private val delegate: MutableMap<String, DznValue>): MutableM
         }
         return JsonObject(jsonValues)
     }
+
+    override fun toString() = delegate.toString()
 
 }

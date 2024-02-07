@@ -47,30 +47,44 @@ sealed class DznValue {
 
     data class Str(val value: String) : DznValue() {
         override fun toJsonElement() = JsonPrimitive(value)
+        override fun toString() = value
     }
 
     data class Num(val value: Number) : DznValue() {
         override fun toJsonElement() = JsonPrimitive(value)
+
+        override fun toString() = value.toString()
     }
 
     data class Bool(val value: Boolean) : DznValue() {
         override fun toJsonElement() = JsonPrimitive(value)
+
+        override fun toString() = value.toString()
     }
 
     data class Arr(val values: List<DznValue>) : DznValue() {
         override fun toJsonElement() = JsonArray(values.map(DznValue::toJsonElement))
+
+
+        override fun toString() = values.toString()
     }
 
     data class Set(val values: List<DznValue>) : DznValue() {
         override fun toJsonElement() = JsonObject(mapOf(
             "set" to JsonArray(values.map(DznValue::toJsonElement))
         ))
+
+
+        override fun toString() = values.toString()
     }
 
     data class Enum(val e: String) : DznValue() {
         override fun toJsonElement() = JsonObject(mapOf(
             "e" to JsonPrimitive(e)
         ))
+
+
+        override fun toString() = e
     }
 
     data class AnonEnum(val e: String, val i: String) : DznValue() {
