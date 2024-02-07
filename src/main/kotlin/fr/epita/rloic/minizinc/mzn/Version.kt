@@ -1,4 +1,4 @@
-package fr.epita.rloic.fr.epita.rloic.minizinc
+package fr.epita.rloic.fr.epita.rloic.minizinc.mzn
 
 import kotlinx.serialization.Serializable
 

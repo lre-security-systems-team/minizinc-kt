@@ -1,7 +1,8 @@
 package fr.epita.rloic.fr.epita.rloic.minizinc
 
-data class SearchResult(
+
+data class SearchResult<T>(
     val status: Status,
-    val solution: Solution?,
+    val solution: Solution<T>?,
     val statistics: Statistics
 )

@@ -4,6 +4,7 @@ import fr.epita.rloic.fr.epita.rloic.minizinc.extensions.expandsUser
 import fr.epita.rloic.fr.epita.rloic.minizinc.extensions.run
 import fr.epita.rloic.fr.epita.rloic.minizinc.extensions.runAsync
 import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.Version
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
 import fr.epita.rloic.fr.epita.rloic.minizinc.utils.Configuration
 import kotlinx.serialization.Serializable
@@ -52,7 +53,7 @@ class Driver private constructor(private val executable: Path) {
         }
     }
 
-    private val minizincVersion by lazy {
+    val version by lazy {
         val output = ProcessBuilder(listOf(executable.pathString, "--version"))
             .run()
 
@@ -72,13 +73,17 @@ class Driver private constructor(private val executable: Path) {
         if (!executable.exists()) {
             throw IllegalArgumentException("No MiniZinc executable was found at $executable.")
         }
-        if (minizincVersion < CLI_REQUIRED_VERSION) {
-            throw IllegalArgumentException("The MiniZinc driver found at $executable has version $minizincVersion. The minimal required version is $CLI_REQUIRED_VERSION")
+        if (version < CLI_REQUIRED_VERSION) {
+            throw IllegalArgumentException("The MiniZinc driver found at $executable has version $version. The minimal required version is $CLI_REQUIRED_VERSION")
         }
     }
 
 
-    fun run(args: MutableList<String>, solver: Solver? = null, contextManager: ContextManager = ContextManager()): ProcessResult.Sync {
+    fun run(
+        args: MutableList<String>,
+        solver: Solver? = null,
+        contextManager: ContextManager = ContextManager()
+    ): ProcessResult.Sync {
         args += "--json-stream"
 
         val output = if (solver == null) {
@@ -105,7 +110,11 @@ class Driver private constructor(private val executable: Path) {
         return output
     }
 
-    fun runAsync(args: MutableList<String>, solver: Solver? = null, contextManager: ContextManager = ContextManager()): ProcessResult.Async {
+    fun runAsync(
+        args: MutableList<String>,
+        solver: Solver? = null,
+        contextManager: ContextManager = ContextManager()
+    ): ProcessResult.Async {
         args += "--json-stream"
 
         val output = if (solver == null) {
@@ -136,7 +145,7 @@ class Driver private constructor(private val executable: Path) {
         }
 
         val output = run(mutableListOf("--solvers-json"))
-        val solvers = loads<List<Solver>>(output.stdout)
+        val solvers: List<Solver> = loads<List<Solver>>(output.stdout)
 
         val solverCache = mutableMapOf<String, MutableList<Solver>>()
         for (s in solvers) {
@@ -152,7 +161,7 @@ class Driver private constructor(private val executable: Path) {
                 s.id, s.id.split('.').last()
             )
             for (name in names) {
-                solverCache.getOrPut(name, ::mutableListOf) += obj
+                solverCache.getOrPut(name) { mutableListOf<Solver>() }.add(obj)
             }
         }
         this.solverCache = solverCache
@@ -160,43 +169,12 @@ class Driver private constructor(private val executable: Path) {
     }
 }
 
-@Serializable
-data class Location(
-    val filename: String? = null,
-    val firstLine: Int? = null,
-    val firstColumn: Int? = null,
-    val lastLine: Int? = null,
-    val lastColumn: Int? = null,
-    val message: String? = null
-) {
-    override fun toString() = buildString {
-        if (filename != null) {
-            append("filename: ")
-            append(filename)
-        }
-        if (listOf(firstLine, firstColumn, lastLine, lastColumn).any { it != 0 && it != null }) {
-            if (isNotEmpty()) append(' ')
-            append("from ")
-            append(firstLine)
-            append(':')
-            append(firstColumn)
-            append(" to ")
-            append(lastLine)
-            append(':')
-            append(lastColumn)
-        }
-        if (!message.isNullOrBlank()) {
-            if(isNotEmpty()) append(' ')
-            append("message: ")
-            append(message)
-        }
-        if (isEmpty()) append("null")
-    }
-}
-
-
 fun parseError(text: String): JsonOutput.Error? {
-    return try { loads<JsonOutput>(text) as? JsonOutput.Error } catch (_: Exception) { null }
+    return try {
+        loads<JsonOutput>(text) as? JsonOutput.Error
+    } catch (_: Exception) {
+        null
+    }
 }
 
 

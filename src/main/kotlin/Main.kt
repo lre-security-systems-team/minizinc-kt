@@ -1,25 +1,36 @@
 package fr.epita.rloic
 
 import fr.epita.rloic.fr.epita.rloic.minizinc.*
+import fr.epita.rloic.fr.epita.rloic.minizinc.dzn.DznData
 import fr.epita.rloic.fr.epita.rloic.minizinc.dzn.DznValue
+import fr.epita.rloic.fr.epita.rloic.minizinc.serde.dumps
+import fr.epita.rloic.fr.epita.rloic.minizinc.serde.jsonSerde
+import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
+import jdk.jshell.Diag
+import kotlinx.serialization.InternalSerializationApi
+import kotlinx.serialization.PolymorphicSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json.Default.serializersModule
+import kotlinx.serialization.json.internal.readJson
+import kotlinx.serialization.serializer
 import kotlin.io.path.Path
 
+@Serializable
+data class Problem(val x: List<Int>)
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 fun main() {
+    val model = Model<Problem>(Path("test.mzn")) { loads(it, true) }
 
-    val model = Model(Path("test.mzn"))
-    model["x"] = DznValue.Num(10)
-    val solver = Solver.lookup("sat")
+    val solver = Solver.lookup("picat")
+    System.err.println("%% " + solver.name + " " + solver.version)
 
     val instance = Instance(solver, model)
-    val solution = instance.solve().solution
+    val (_, solution, stats) = instance.solve(
+        nrSolutions = 5
+    )
 
-    if (solution != null && solution is Solution.Single) {
-        println(solution.data["x"])
-    }
-
+    println(stats)
+    solution?.forEach(::println)
 }
 
 
