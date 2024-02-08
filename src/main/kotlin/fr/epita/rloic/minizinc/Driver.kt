@@ -7,7 +7,6 @@ import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
 import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.Version
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
 import fr.epita.rloic.fr.epita.rloic.minizinc.utils.Configuration
-import kotlinx.serialization.Serializable
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.exists
@@ -82,7 +81,7 @@ class Driver private constructor(private val executable: Path) {
     fun run(
         args: MutableList<String>,
         solver: Solver? = null,
-        contextManager: ContextManager = ContextManager()
+        lifeTime: Lifetime = Lifetime()
     ): ProcessResult.Sync {
         args += "--json-stream"
 
@@ -97,12 +96,12 @@ class Driver private constructor(private val executable: Path) {
                 val cmd = listOf(
                     executable.pathString,
                     "--solver",
-                    conf.asString(),
+                    conf.toString(),
                     "--allow-multiple-assignments"
                 ) + args
                 return ProcessBuilder(cmd).run()
             }
-            contextManager.use(solver.configuration(), ::executeWithConf)
+            executeWithConf(solver.configuration(lifeTime))
         }
         if (output.returnCode != 0) {
             parseError(output.stdout)?.throws() ?: throw RuntimeException(output.stderr)
@@ -113,30 +112,31 @@ class Driver private constructor(private val executable: Path) {
     fun runAsync(
         args: MutableList<String>,
         solver: Solver? = null,
-        contextManager: ContextManager = ContextManager()
-    ): ProcessResult.Async {
-        args += "--json-stream"
+        lifetime: Lifetime = Lifetime()
+    ): ProcessResult.Async =
+        with(lifetime) {
+            args += "--json-stream"
 
-        val output = if (solver == null) {
-            val cmd = listOf(
-                executable.pathString,
-                "--allow-multiple-assignments"
-            ) + args
-            ProcessBuilder(cmd).runAsync()
-        } else {
-            fun executeWithConf(conf: Configuration): ProcessResult.Async {
+            val output = if (solver == null) {
                 val cmd = listOf(
                     executable.pathString,
-                    "--solver",
-                    conf.asString(),
                     "--allow-multiple-assignments"
                 ) + args
-                return ProcessBuilder(cmd).runAsync()
+                ProcessBuilder(cmd).runAsync()
+            } else {
+                fun executeWithConf(conf: Configuration): ProcessResult.Async {
+                    val cmd = listOf(
+                        executable.pathString,
+                        "--solver",
+                        conf.toString(),
+                        "--allow-multiple-assignments"
+                    ) + args
+                    return ProcessBuilder(cmd).runAsync()
+                }
+                executeWithConf(solver.configuration(this@with))
             }
-            contextManager.use(solver.configuration(), ::executeWithConf)
+            return output
         }
-        return output
-    }
 
     fun availableSolvers(refresh: Boolean = false): Map<String, List<Solver>> {
         val currentSolverCache = solverCache

@@ -6,14 +6,9 @@ import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.Method
 import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.dumps
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
-import fr.epita.rloic.fr.epita.rloic.minizinc.utils.FilesContextManager
 import kotlinx.serialization.json.JsonObject
 import java.nio.file.Path
-import java.time.Instant
-import kotlin.io.path.appendText
-import kotlin.io.path.createTempFile
-import kotlin.io.path.pathString
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 import kotlin.time.Duration
 
 class Instance<T>(
@@ -150,15 +145,15 @@ class Instance<T>(
 
         val multipleSolutions = (allSolutions || intermediateSolutions || (nrSolutions != null))
 
-        val contextManager = ContextManager()
-        contextManager.use { ctx ->
-            files().use { files ->
+        Lifetime { global ->
+            Lifetime { filesLifeTime ->
+                val files = files(filesLifeTime)
                 cmd += files.map(Path::toString)
                 var status = Status.UNKNOWN
                 var solution: Solution<T>? = null
                 var statistics = Statistics()
                 var statusChanged = false
-                val proc = driver.runAsync(cmd, solver, ctx)
+                val proc = driver.runAsync(cmd, solver, global)
 
                 for (line in proc.stdout) {
                     parseError(line)?.throws()
@@ -195,49 +190,49 @@ class Instance<T>(
                 }
             }
         }
-
     }
 
-    private fun files(): FilesContextManager {
-        val files = mutableListOf<Path>()
-        val fragments = mutableListOf<String>()
-        val data = mutableMapOf<String, DznValue>()
 
-        var inst: Instance<T>? = this
-        while (inst != null) {
-            for ((k, v) in inst.model.data.entries) {
-                if (v is DznValue.Enum) {
-                    TODO()
-                } else {
-                    data[k] = v
+    private fun files(lifeTime: Lifetime): List<Path> =
+        with(lifeTime) {
+            val files = mutableListOf<Path>()
+            val fragments = mutableListOf<String>()
+            val data = mutableMapOf<String, DznValue>()
+
+            var inst: Instance<T>? = this@Instance
+            while (inst != null) {
+                for ((k, v) in inst.model.data.entries) {
+                    if (v is DznValue.Enum) {
+                        TODO()
+                    } else {
+                        data[k] = v
+                    }
+                }
+                fragments += inst.model.codeFragments
+                files += inst.model.includes
+                inst = inst.parent
+            }
+            val genFiles = mutableListOf<Path>()
+            if (data.isNotEmpty()) {
+                val file = createTempFile(
+                    prefix = "mzn_data",
+                    suffix = ".json"
+                )
+                genFiles.add(file)
+                file.writeText(dumps(DznData(data).toJsonObject()))
+            }
+            if (fragments.isNotEmpty() || files.isEmpty()) {
+                val file = createTempFile(
+                    prefix = "mzn_fragment",
+                    suffix = ".mzn"
+                )
+                genFiles.add(file)
+                for (code in fragments) {
+                    file.appendText(code)
                 }
             }
-            fragments += inst.model.codeFragments
-            files += inst.model.includes
-            inst = inst.parent
+            files + runOnExit(genFiles, Path::deleteIfExists)
         }
-        val genFiles = mutableListOf<Path>()
-        if (data.isNotEmpty()) {
-            val file = createTempFile(
-                prefix = "mzn_data",
-                suffix = ".json"
-            )
-            genFiles.add(file)
-            file.writeText(dumps(DznData(data).toJsonObject()))
-
-        }
-        if (fragments.isNotEmpty() || files.isEmpty()) {
-            val file = createTempFile(
-                prefix = "mzn_fragment",
-                suffix = ".mzn"
-            )
-            genFiles.add(file)
-            for (code in fragments) {
-                file.appendText(code)
-            }
-        }
-        return FilesContextManager(files, genFiles)
-    }
 
 
     data class UpdatedResult<T>(
@@ -304,7 +299,8 @@ class Instance<T>(
     }
 
     private fun analyse(): JsonOutput.Interface {
-        return files().use { files ->
+        return Lifetime {
+            val files = files(it)
             loads<JsonOutput>(
                 driver.run(
                     (listOf("--model-interface-only") + files.map(Path::toString)).toMutableList(),

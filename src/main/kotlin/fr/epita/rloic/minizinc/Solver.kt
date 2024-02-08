@@ -61,19 +61,20 @@ data class Solver(
         }
     }
 
-    fun configuration(): Configuration {
-        val identifier = _identifier
-        return if (identifier != null) {
-            Configuration.Str(identifier)
-        } else {
-            val path = createTempFile(
-                prefix = "minizinc_solver_",
-                suffix = ".msc",
-            )
-            path.writeText(dumps(this))
-            Configuration.TmpFile(path)
+    fun configuration(lifetime: Lifetime = Lifetime()): Configuration =
+        with(lifetime) {
+            val identifier = _identifier
+            return if (identifier != null) {
+                Configuration.Str(identifier)
+            } else {
+                val path = createTempFile(
+                    prefix = "minizinc_solver_",
+                    suffix = ".msc",
+                )
+                path.writeText(dumps(this))
+                Configuration.TmpFile(runOnExit(path, Path::deleteIfExists))
+            }
         }
-    }
 
 }
 
