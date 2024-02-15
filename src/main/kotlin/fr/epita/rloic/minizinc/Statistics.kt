@@ -32,6 +32,7 @@ data class Statistics(
     var flatTime: MilliSeconds? = null,
     var flatIntVars: Long? = null,
     var flatIntConstraints: Long? = null,
+    var flatBoolVars: Long? = null,
     var objective: JsonPrimitive? = null,
     var objectiveBound: JsonPrimitive? = null,
     var baseMem: Double? = null,
