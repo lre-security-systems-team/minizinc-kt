@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "fr.epita.rloic"
-version = "0.1.1"
+version = "0.1.3"
 
 repositories {
     mavenCentral()
