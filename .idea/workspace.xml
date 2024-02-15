@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f7b966b5-8466-40b9-8af6-932cd810822c" name="Changes" comment="[init] Initial commint" />
+    <list default="true" id="f7b966b5-8466-40b9-8af6-932cd810822c" name="Changes" comment="chore (global): Add Baseline version&#10;Create the first alpha version from MiniZinc python">
+      <change afterPath="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/ContextTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -18,8 +21,8 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Kotlin Class" />
         <option value="Kotlin File" />
+        <option value="Kotlin Class" />
       </list>
     </option>
   </component>
@@ -44,7 +47,7 @@
     "Kotlin.MainKt.executor": "Run",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master",
+    "git-widget-placeholder": "dev",
     "kotlin-language-version-configured": "true",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -56,9 +59,15 @@
   }
 }]]></component>
   <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/main/kotlin/fr/epita/rloic/minizinc/extensions" />
+    </key>
     <key name="MoveKotlinTopLevelDeclarationsDialog.RECENTS_KEY">
-      <recent name="fr.epita.rloic.minizinc.dzn" />
+      <recent name="fr.epita.rloic.minizinc.mzn" />
+      <recent name="fr.epita.rloic.minizinc.utils" />
       <recent name="fr.epita.rloic.minizinc.serde" />
+      <recent name="fr.epita.rloic.minizinc.mzn_model" />
+      <recent name="fr.epita.rloic.minizinc.dzn" />
     </key>
   </component>
   <component name="RunManager">
@@ -93,6 +102,10 @@
       <workItem from="1706985686102" duration="11739000" />
       <workItem from="1707080182775" duration="7074000" />
       <workItem from="1707118883070" duration="19012000" />
+      <workItem from="1707226662609" duration="829000" />
+      <workItem from="1707259505695" duration="1794000" />
+      <workItem from="1707290827276" duration="2444000" />
+      <workItem from="1707298049958" duration="10371000" />
     </task>
     <task id="LOCAL-00001" summary="[init] Initial commint">
       <option name="closed" value="true" />

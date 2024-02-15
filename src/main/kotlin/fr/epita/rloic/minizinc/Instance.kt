@@ -2,25 +2,20 @@ package fr.epita.rloic.fr.epita.rloic.minizinc
 
 import fr.epita.rloic.fr.epita.rloic.minizinc.dzn.DznData
 import fr.epita.rloic.fr.epita.rloic.minizinc.dzn.DznValue
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.Method
+import fr.epita.rloic.fr.epita.rloic.minizinc.mzn.JsonOutput
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.dumps
 import fr.epita.rloic.fr.epita.rloic.minizinc.serde.loads
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.double
 import java.nio.file.Path
-import java.time.Instant
-import kotlin.io.path.appendText
-import kotlin.io.path.createTempFile
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 import kotlin.time.Duration
 
-class Instance(
+class Instance<T>(
     private val solver: Solver,
-    private val model: Model,
+    private val model: Model<T>,
     driver: Driver? = null,
-    private val parent: Instance? = null
+    private val parent: Instance<T>? = null
 ) {
     private val fieldRenames = mutableListOf<Pair<String, String>>()
     private val driver = driver ?: defaultDriver
@@ -40,9 +35,9 @@ class Instance(
         freeSearch: Boolean = false,
         optimisationLevel: Int? = null,
         kwargs: Map<String, Any> = emptyMap()
-    ): MznResult {
+    ): SearchResult<T> {
         var status = Status.UNKNOWN
-        var solution: Solution? = null
+        var solution: Solution<T>? = null
         val statistics = Statistics()
 
         val multipleSolutions = (allSolutions || intermediateSolutions || (nrSolutions != null))
@@ -71,7 +66,7 @@ class Instance(
                 }
             }
         }
-        return MznResult(status, solution, statistics)
+        return SearchResult(status, solution, statistics)
     }
 
     private fun solutions(
@@ -84,9 +79,9 @@ class Instance(
         freeSearch: Boolean = false,
         optimisationLevel: Int? = null,
         verbose: Boolean = false,
-        debutOutput: Path? = null,
+        debugOutput: Path? = null,
         kwargs: Map<String, Any> = emptyMap()
-    ): Sequence<MznResult> = sequence {
+    ): Sequence<SearchResult<T>> = sequence {
         val cmd = mutableListOf(
             "--output-mode",
             "json",
@@ -106,15 +101,13 @@ class Instance(
                 """.trimIndent()
                 )
             }
-            if (method != Method.SATISFY) {
-                throw NotImplementedError(
-                    """
-                    Finding all optimal solutions is not yet implemented
-                """.trimIndent()
-                )
+            if (method == Method.SATISFY) {
+                checkFlagSupport(solver, "-a")
+                cmd.add("--all-solutions")
+            } else {
+                checkFlagSupport(solver, "-a-o")
+                cmd.add("--all-optimal")
             }
-            checkFlagSupport(solver, "-a")
-            cmd.add("--all-solutions")
         } else if (nrSolutions != null) {
             if (nrSolutions <= 0L) {
                 throw IllegalArgumentException(
@@ -124,11 +117,15 @@ class Instance(
                 """.trimIndent()
                 )
             }
-            if (method != Method.SATISFY) {
-                throw NotImplementedError("Finding multiple optimal solutions is not yet implemented")
+            if (method == Method.SATISFY) {
+                checkFlagSupport(solver, "-n")
+                cmd += listOf("--num-solutions", nrSolutions.toString())
+            } else {
+                checkFlagSupport(solver, "-n-o")
+                cmd += listOf("--num-optimal", nrSolutions.toString())
             }
-            checkFlagSupport(solver, "-n")
-            cmd += listOf("--num-solutions", nrSolutions.toString())
+        } else if ("-i" !in solver.stdFlags || "-a" !in solver.stdFlags) {
+            cmd += "--intermediate-solutions"
         }
         if (processes != null) cmd += listOf("--parallel", processes.toString())
         if (randomSeed != null) cmd += listOf("--random-seed", randomSeed.toString())
@@ -146,82 +143,127 @@ class Instance(
             }
         }
 
-        files().use { files ->
-            cmd += files.map(Path::toString)
-            var status = Status.UNKNOWN
-            var statistics = Statistics()
-            val proc = driver.runAsync(cmd, solver)
+        val multipleSolutions = (allSolutions || intermediateSolutions || (nrSolutions != null))
 
-            for (line in proc.stdout) {
-                val error = parseError(line)
-                if (error != null) throw error
+        Lifetime { global ->
+            Lifetime { filesLifeTime ->
+                val files = files(filesLifeTime)
+                cmd += files.map(Path::toString)
+                var status = Status.UNKNOWN
+                var solution: Solution<T>? = null
+                var statistics = Statistics()
+                var statusChanged = false
+                val proc = driver.runAsync(cmd, solver, global)
 
-                val (solution, newStatus, _statistics) = parseStreamObj(loads(line), statistics)
-                statistics = _statistics
-                if (newStatus != null) {
-                    status = newStatus
-                } else if (solution != null) {
-                    if (status == Status.UNKNOWN) {
-                        status = Status.SATISFIED
+                for (line in proc.stdout) {
+                    parseError(line)?.throws()
+
+                    val (newSolution, newStatus) = parseStreamObj(loads(line), statistics)
+                    if (newStatus != null) {
+                        status = newStatus
+                        statusChanged = true
+                    } else if (newSolution != null) {
+                        solution = newSolution
+                        if (status == Status.UNKNOWN) {
+                            status = Status.SATISFIED
+                        }
+                        if (multipleSolutions) {
+                            yield(SearchResult(status, solution, statistics))
+                            solution = null
+                            statistics = Statistics()
+                            statusChanged = false
+                        }
                     }
-                    yield(MznResult(status, solution, statistics))
-                    statistics = Statistics()
+                }
+
+                if (!multipleSolutions) {
+                    yield(SearchResult(status, solution, statistics))
+                } else if (statusChanged || statistics != Statistics()) {
+                    yield(SearchResult(status, null, statistics))
+                }
+
+                val stdErr = proc.stderr.joinToString("\n")
+                val code = proc.waitFor()
+                debugOutput?.writeText(stdErr)
+                if (code != 0 || status == Status.ERROR) {
+                    parseError(stdErr)?.throws()
                 }
             }
-            proc.waitFor()
         }
     }
 
-    private fun files(): FilesContextManager {
-        val files = mutableListOf<Path>()
-        val fragments = mutableListOf<String>()
-        val data = mutableMapOf<String, DznValue>()
 
-        var inst: Instance? = this
-        while (inst != null) {
-            for ((k, v) in inst.model.data.entries) {
-                if (v is DznValue.Enum) {
-                    TODO()
-                } else {
-                    data[k] = v
+    private fun files(lifeTime: Lifetime): List<Path> =
+        with(lifeTime) {
+            val files = mutableListOf<Path>()
+            val fragments = mutableListOf<String>()
+            val data = mutableMapOf<String, DznValue>()
+
+            var inst: Instance<T>? = this@Instance
+            while (inst != null) {
+                for ((k, v) in inst.model.data.entries) {
+                    if (v is DznValue.Enum) {
+                        TODO()
+                    } else {
+                        data[k] = v
+                    }
+                }
+                fragments += inst.model.codeFragments
+                files += inst.model.includes
+                inst = inst.parent
+            }
+            val genFiles = mutableListOf<Path>()
+            if (data.isNotEmpty()) {
+                val file = createTempFile(
+                    prefix = "mzn_data",
+                    suffix = ".json"
+                )
+                genFiles.add(file)
+                file.writeText(dumps(DznData(data).toJsonObject()))
+            }
+            if (fragments.isNotEmpty() || files.isEmpty()) {
+                val file = createTempFile(
+                    prefix = "mzn_fragment",
+                    suffix = ".mzn"
+                )
+                genFiles.add(file)
+                for (code in fragments) {
+                    file.appendText(code)
                 }
             }
-            fragments += inst.model.codeFragments
-            files += inst.model.includes
-            inst = inst.parent
+            files + runOnExit(genFiles, Path::deleteIfExists)
         }
-        val genFiles = mutableListOf<Path>()
-        if (data.isNotEmpty()) {
-            val file = createTempFile(
-                prefix = "mzn_data",
-                suffix = ".json"
-            )
-            genFiles.add(file)
-            file.writeText(dumps(DznData(data).toJsonObject()))
 
-        }
-        if (fragments.isNotEmpty() || files.isEmpty()) {
-            val file = createTempFile(
-                prefix = "mzn_fragment",
-                suffix = ".mzn"
-            )
-            genFiles.add(file)
-            for (code in fragments) {
-                file.appendText(code)
-            }
-        }
-        return FilesContextManager(files, genFiles)
-    }
 
-    private fun parseStreamObj(obj: MutableMap<String, JsonElement>, statistics: Statistics): Ret {
-        var solution: Solution.Single? = null
+    data class UpdatedResult<T>(
+        val newSolution: Solution.Single<T>?,
+        val newStatus: Status?
+    )
+
+    private fun parseStreamObj(obj: JsonOutput, statistics: Statistics): UpdatedResult<T> {
+        var solution: Solution.Single<T>? = null
         var status: Status? = null
-        val type = (obj["type"] as? JsonPrimitive)?.content
 
+        when (obj) {
+            is JsonOutput.Interface -> {
+                // TODO: print warning?
+            }
 
-        when (type) {
-            "solution" -> {
-                val tmp = DznData.fromJsonObject((obj["output"] as JsonObject)["json"] as JsonObject)
+            is JsonOutput.Comment -> {
+                System.err.print(obj.comment)
+            }
+
+            is JsonOutput.Error -> {
+                throw RuntimeException(obj.message)
+            }
+
+            is JsonOutput.Warning -> {
+                System.err.println(obj)
+            }
+
+            is JsonOutput.Solution -> {
+                val tmp = obj.output.json.toMutableMap()
+
                 val mznFieldsRename = listOf(
                     "_objective" to "objective",
                     "_output" to "_output_item"
@@ -232,65 +274,47 @@ class Instance(
                     }
                 }
 
-                solution = Solution.Single(tmp)
-                statistics.time = timedelta((obj["time"] as JsonPrimitive).double)
+                solution = Solution.Single(model.outputType(JsonObject(tmp)))
+                statistics.time = obj.time
             }
 
-            "time" -> {
-                statistics.time = timedelta((obj["time"] as JsonPrimitive).double)
+            is JsonOutput.Time -> {
+                statistics.time = obj.time
             }
 
-            "statistics" -> {
-                // TODO: update statistics
-                // System.err.println(loads<Statistics>(dumps(obj["statistics"])))
+            is JsonOutput.Statistics -> {
+                statistics.update(obj.statistics)
             }
 
-            "status" -> {
-                status = Status.valueOf((obj["status"] as JsonPrimitive).content)
+            is JsonOutput.Status -> {
+                status = obj.status
             }
 
-            "checker" -> {
+            is JsonOutput.Checker -> {
                 // TODO: handle checker
                 System.err.println(obj)
             }
         }
-        return Ret(solution, status, statistics)
+        return UpdatedResult(solution, status)
     }
 
-    private fun analyse(): MznInterface {
-        return files().use { files ->
-            loads<MznInterface>(
+    private fun analyse(): JsonOutput.Interface {
+        return Lifetime {
+            val files = files(it)
+            loads<JsonOutput>(
                 driver.run(
                     (listOf("--model-interface-only") + files.map(Path::toString)).toMutableList(),
                     solver
                 ).stdout
-            )
+            ) as JsonOutput.Interface
         }
     }
 
 }
 
-@Serializable
-data class MznInterface(
-    val method: Method
-)
 
 fun checkFlagSupport(solver: Solver, flag: String) {
     if (flag !in solver.stdFlags) throwUnsupportedFlag(flag)
 }
 
 fun throwUnsupportedFlag(flag: String): Nothing = throw NotImplementedError("Solver does not support the $flag flag")
-
-enum class Status {
-    ERROR, UNKNOWN, UNBOUNDED, UNSATISFIABLE, SATISFIED, ALL_SOLUTIONS, OPTIMAL_SOLUTION;
-}
-
-data class Ret(
-    val newSolution: Solution.Single?,
-    val newStatus: Status?,
-    val updatedStatistics: Statistics
-)
-
-fun timedelta(instantMilli: Double): Double {
-    return Instant.now().toEpochMilli() - instantMilli
-}

@@ -8,22 +8,41 @@ import java.nio.file.Path
 import kotlin.io.path.extension
 import kotlin.io.path.readText
 
-data class Model(
-    private val _data: MutableMap<String, DznValue> = mutableMapOf(),
-    private val _codeFragments: MutableList<String> = mutableListOf(),
-    private val enumMap: MutableMap<String, Any> = mutableMapOf(),
-    private val _includes: MutableList<Path> = mutableListOf(),
-    private var checker: Boolean = false,
+private fun <T> identity(element: T): T = element
+
+class Model<T>(
+    val outputType: (JsonObject) -> T
 ) {
+
+    companion object {
+        operator fun invoke(): Model<JsonObject> = Model(::identity)
+
+        operator fun invoke(path: Path): Model<JsonObject> = Model(path, ::identity)
+
+        operator fun invoke(paths: List<Path>): Model<JsonObject> = Model(paths, ::identity)
+
+    }
+
+    private val _data: MutableMap<String, DznValue> = mutableMapOf()
+    private val _codeFragments: MutableList<String> = mutableListOf()
+    private val enumMap: MutableMap<String, Any> = mutableMapOf()
+    private val _includes: MutableList<Path> = mutableListOf()
+    private var checker: Boolean = false
+
+    constructor(path: Path, outputType: (JsonObject) -> T) : this(outputType) {
+        addFile(path)
+    }
+
+    constructor(paths: List<Path>, outputType: (JsonObject) -> T) : this(outputType) {
+        for (path in paths) {
+            addFile(path)
+        }
+    }
 
     val codeFragments: List<String> get() = _codeFragments
     val data: Map<String, DznValue> get() = _data
     val includes: List<Path> get() = _includes
 
-    constructor(files: List<Path>) : this() {
-        for (file in files) addFile(file)
-    }
-    constructor(file: Path) : this(listOf(file))
 
     operator fun get(key: String): DznValue? = _data[key]
 
@@ -42,6 +61,11 @@ data class Model(
         }
     }
 
+    operator fun set(key: String, value: String): Unit = set(key, DznValue.Str(value))
+    operator fun set(key: String, value: Number): Unit = set(key, DznValue.Num(value))
+    operator fun set(key: String, value: List<DznValue>): Unit = set(key, DznValue.Arr(value))
+    operator fun set(key: String, value: Set<DznValue>): Unit = set(key, DznValue.Set(value.toList()))
+
     fun addFile(file: Path, parseData: Boolean = false) {
         if (!parseData) {
             _includes.add(file)
@@ -54,6 +78,7 @@ data class Model(
                     this[key] = value
                 }
             }
+
             in listOf("dzn", "mzn", "mzc") -> {
                 // TODO: add parser dzn instructions
                 if (file.extension == "mzc") {
@@ -71,5 +96,4 @@ data class Model(
     fun addString(fragment: String) {
         _codeFragments += fragment
     }
-
 }
