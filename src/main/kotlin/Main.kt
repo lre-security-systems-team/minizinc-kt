@@ -16,11 +16,12 @@ import kotlinx.serialization.serializer
 import kotlin.io.path.Path
 
 @Serializable
-data class Problem(val x: List<Int>)
+data class Problem(val X: List<List<Boolean>>)
 
 fun main() {
-    val model = Model<Problem>(Path("test.mzn")) { loads(it, true) }
-
+    val model = Model<Problem>(Path("/Users/rloic/Documents/Recherche/sac2024/code/model/src/main/minizinc/skinny/truncated-differential-characteristic.mzn")) { loads(it, true) }
+    model["version"] = 64
+    model["rounds"] = 3
     val solver = Solver.lookup("picat")
     System.err.println("%% " + solver.name + " " + solver.version)
 
