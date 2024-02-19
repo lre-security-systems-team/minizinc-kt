@@ -158,7 +158,7 @@ class Instance<T>(
                 for (line in proc.stdout) {
                     parseError(line)?.throws()
 
-                    val (newSolution, newStatus) = parseStreamObj(loads(line), statistics)
+                    val (newSolution, newStatus) = parseStreamObj(loads(line, true), statistics)
                     if (newStatus != null) {
                         status = newStatus
                         statusChanged = true

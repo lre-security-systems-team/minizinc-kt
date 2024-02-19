@@ -19,4 +19,7 @@ inline fun <reified T> loads(json: JsonElement, ignoreUnknownKeys: Boolean = fal
         .readJson(json, Json.serializersModule.serializer<T>())
 
 inline fun <reified T> loads(text: String) = jsonSerde.decodeFromString<T>(text)
+inline fun <reified T> loads(text: String, ignoreUnknownKeys: Boolean) =
+    (if (ignoreUnknownKeys) jsonSerdeIgnoreUnknownKey else jsonSerde).decodeFromString<T>(text)
+
 inline fun <reified T> dumps(value: T) = jsonSerde.encodeToString(value)
